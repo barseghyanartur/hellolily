@@ -3,10 +3,10 @@ from rest_framework.routers import DefaultRouter
 
 from lily.accounts.api.views import AccountViewSet, AccountStatusViewSet, AccountImport
 from lily.billing.api.views import BillingViewSet
-from lily.cases.api.views import CaseViewSet, CaseStatusViewSet, CaseTypeViewSet
+from lily.cases.api.views import CaseViewSet, CaseStatusViewSet, CaseTypeViewSet, CasePrioritiesList
 from lily.calls.api.views import CallViewSet, CallRecordViewSet
 from lily.contacts.api.views import ContactViewSet, ContactImport
-from lily.deals.api.views import (DealViewSet, DealStatusViewSet, DealNextStepList, DealNextStepViewSet,
+from lily.deals.api.views import (DealViewSet, DealStatusViewSet, DealNextStepViewSet,
                                   DealWhyCustomerViewSet, DealContactedByViewSet, DealWhyLostViewSet,
                                   DealFoundThroughViewSet)
 from lily.integrations.api.views import (DocumentDetails, EstimatesList, IntegrationAuth, MoneybirdContactImport,
@@ -76,7 +76,7 @@ router.register(r'voipgrid/call-notifications', CallNotificationViewSet, base_na
 router.register(r'voys/call-notifications', CallNotificationViewSet, base_name='callnotification')
 
 urlpatterns = [
-    url(r'^deals/nextsteps/$', DealNextStepList.as_view()),
+    url(r'^cases/priorities/$', CasePrioritiesList.as_view()),
 
     url(r'^accounts/import/$', AccountImport.as_view()),
     url(r'^contacts/import/$', ContactImport.as_view()),
