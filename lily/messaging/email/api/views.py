@@ -396,7 +396,7 @@ class EmailMessageViewSet(mixins.RetrieveModelMixin,
         attachments = email.attachments.all()
         serializer = EmailAttachmentSerializer(attachments, many=True)
 
-        return Response({'attachments': serializer.data})
+        return Response({'results': serializer.data})
 
     @detail_route(methods=['GET'])
     def thread(self, request, pk):

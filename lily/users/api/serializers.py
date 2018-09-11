@@ -52,6 +52,7 @@ class TeamSerializer(serializers.ModelSerializer):
             users.append({
                 'id': user.id,
                 'full_name': user.full_name,
+                'profile_picture': user.profile_picture,
             })
 
         return users
@@ -117,6 +118,7 @@ class LilyUserSerializer(WritableNestedSerializer):
             'tenant',
             'has_two_factor',
             'has_password',
+            'user_hash',
         )
 
     def __init__(self, instance=None, *args, **kwargs):
