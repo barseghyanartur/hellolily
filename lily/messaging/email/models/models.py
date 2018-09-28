@@ -171,8 +171,8 @@ class Recipient(models.Model):
     """
     Name and email address of a recipient.
     """
-    name = models.CharField(max_length=1000, null=True)
-    email_address = models.CharField(max_length=1000, null=True, db_index=True)
+    name = models.CharField(max_length=1000, blank=True)
+    email_address = models.CharField(max_length=1000, blank=True, db_index=True)
 
     def __unicode__(self):
         return u'%s <%s>' % (self.name, self.email_address)
@@ -509,13 +509,13 @@ class EmailTemplateAttachment(TenantMixin):
 
 
 class EmailOutboxMessage(TenantMixin, models.Model):
-    bcc = models.TextField(null=True, blank=True, verbose_name=_('bcc'))
-    body = models.TextField(null=True, blank=True, verbose_name=_('html body'))
-    cc = models.TextField(null=True, blank=True, verbose_name=_('cc'))
-    headers = models.TextField(null=True, blank=True, verbose_name=_('email headers'))
+    bcc = models.TextField(blank=True, verbose_name=_('bcc'))
+    body = models.TextField(blank=True, verbose_name=_('html body'))
+    cc = models.TextField(blank=True, verbose_name=_('cc'))
+    headers = models.TextField(blank=True, verbose_name=_('email headers'))
     mapped_attachments = models.IntegerField(verbose_name=_('number of mapped attachments'))
     original_attachment_ids = models.TextField(default='', validators=[validate_comma_separated_integer_list])
-    subject = models.CharField(null=True, blank=True, max_length=255, verbose_name=_('subject'))
+    subject = models.CharField(blank=True, max_length=255, verbose_name=_('subject'))
     send_from = models.ForeignKey(EmailAccount, verbose_name=_('from'), related_name='outbox_messages')
     template_attachment_ids = models.CharField(
         max_length=255,
@@ -523,7 +523,7 @@ class EmailOutboxMessage(TenantMixin, models.Model):
         validators=[validate_comma_separated_integer_list]
     )
     to = models.TextField(verbose_name=_('to'))
-    original_message_id = models.CharField(null=True, blank=True, max_length=50, db_index=True)
+    original_message_id = models.CharField(blank=True, max_length=50, db_index=True)
 
     def message(self):
         from ..utils import get_attachment_filename_from_url, replace_cid_and_change_headers

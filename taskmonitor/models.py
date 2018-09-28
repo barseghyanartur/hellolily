@@ -13,7 +13,7 @@ class TaskStatus(models.Model):
     depending on the broker or celery itself.
     """
     status = models.CharField(max_length=20, default=states.PENDING, choices=STATES_CHOICES, db_index=True)
-    task_id = models.CharField(max_length=50, unique=True, blank=True, null=True, db_index=True)
+    task_id = models.CharField(max_length=50, unique=True, blank=True, db_index=True)
     signature = models.CharField(max_length=255, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
