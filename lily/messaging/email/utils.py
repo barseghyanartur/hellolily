@@ -323,7 +323,7 @@ def replace_cid_and_change_headers(html, pk):
     dummy_headers = []
     inline_images = []
     soup = create_a_beautiful_soup_object(html)
-    attachments = EmailAttachment.objects.filter(message_id=pk)
+    attachments = EmailAttachment.objects.filter(message_id=pk) if pk else []
 
     if soup and attachments:
         inline_images = soup.findAll('img', {'cid': lambda cid: cid})
