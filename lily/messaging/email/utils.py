@@ -12,7 +12,6 @@ from urllib import unquote
 from django.apps import apps
 from django.db.models.query_utils import Q
 from django.conf import settings
-from django.core.files.storage import default_storage
 from django.urls import reverse
 from django.template import Context
 from django.template.base import VARIABLE_TAG_START, VARIABLE_TAG_END
@@ -302,9 +301,10 @@ def replace_cid_in_html(html, mapped_attachments, request):
 
 def replace_cid_and_change_headers(html, pk):
     """
-    Check in the html source if there is an image tag with the attribute cid. Loop through the attachemnts that are
-    linked with the email. If there is a match replace the source of the image with the cid information.
-    After read the image information form the disk and put the data in a dummy header.
+    Check in the html source if there is an image tag with the attribute cid.
+    Loop through the attachments that are linked with the email. If there is a
+    match replace the source of the image with the cid information. After read
+    the image information from the disk and put the data in a dummy header.
     At least create a plain text version of the html email.
 
     Args:

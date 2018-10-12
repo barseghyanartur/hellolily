@@ -1,8 +1,22 @@
+import anyjson
+
 from django.utils import timezone
+from django.test import TestCase
 from rest_framework.test import APITestCase
 
+from django.core.mail import EmailMultiAlternatives
+
 from lily.messaging.email.factories import EmailAccountFactory, EmailMessageFactory
-from lily.messaging.email.models.models import EmailMessage, Recipient, EmailLabel, EmailHeader, EmailAccount
+from lily.messaging.email.models.models import (
+    EmailMessage,
+    Recipient,
+    EmailLabel,
+    EmailHeader,
+    EmailAccount,
+    EmailOutboxMessage,
+    EmailDraftMessage
+)
+
 from lily.messaging.email.utils import get_filtered_message
 from lily.settings import settings
 from lily.tenant.factories import TenantFactory
@@ -413,3 +427,119 @@ class EmailAccountTests(UserBasedTest, APITestCase):
                 return True
 
         return False
+
+
+class EmailOutboxMessageTests(UserBasedTest, APITestCase):
+    """
+    Class for unit testing the email message model.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        super(EmailOutboxMessageTests, cls).setUpTestData()
+
+        # Create an email account for the user.
+        cls.email_account = EmailAccountFactory.create(
+            owner=cls.user_obj,
+            tenant=cls.user_obj.tenant
+        )
+
+        cls.body_content = (
+            'In hac habitasse platea dictumst. Class '
+            'aptent taciti sociosqu ad litora torquent per conubia nostra'
+            ', per inceptos himenaeos. Ut aliquet elit sed augue bibendum '
+            'malesuada.'
+        )
+
+        to = 'user2@example.com'
+        kwargs = dict(
+            subject='Mauris ex tortor, hendrerit non sem eu, varius purus.',
+            send_from=cls.email_account,
+            to=anyjson.dumps([to]),
+            cc=anyjson.dumps(None),
+            bcc=anyjson.dumps(None),
+            body='<html><body><br/>{}</body></html>'.format(cls.body_content),
+            headers={},
+            mapped_attachments=0,
+            template_attachment_ids='',
+            original_message_id=None,
+            tenant=cls.user_obj.tenant
+        )
+
+        cls.email_outbox_message = EmailOutboxMessage.objects.create(**kwargs)
+
+        # Some fields are different types in EmailDraftMessage
+        kwargs['to'] = [to]
+        kwargs['cc'] = []
+        kwargs['bcc'] = []
+        kwargs['send_from'] = cls.email_account
+
+        cls.email_draft_message = EmailDraftMessage.objects.create(**kwargs)
+
+    def test_message(self):
+        """
+        Test if the body of email outbox message is the same as the email draft
+        message.
+        """
+
+        message_should_contain = [
+            'From nobody ',
+            'Content-Type: multipart/related;',
+            ' boundary=',
+            'MIME-Version: 1.0',
+            'Subject: {}'.format(self.email_outbox_message.subject),
+            'From: ',
+            'To: {}'.format(self.email_draft_message.to[0]),
+            '',
+            '--===============',
+            'Content-Type: multipart/alternative;',
+            ' boundary=',
+            'MIME-Version: 1.0',
+            '',
+            '--==============',
+            'Content-Type: text/plain; charset="utf-8"',
+            'MIME-Version: 1.0',
+            'Content-Transfer-Encoding: 7bit',
+            '',
+            '',
+            self.body_content,
+            '',
+            '--==============',
+            'Content-Type: text/html; charset="utf-8"',
+            'MIME-Version: 1.0',
+            'Content-Transfer-Encoding: 7bit',
+            '',
+            self.email_outbox_message.body,
+            '--==============',
+            '',
+            '--==============',
+        ]
+
+        message = str(self.email_outbox_message.message()).split('\n')
+
+        for contains, line in zip(message_should_contain, message):
+            self.assertIn(contains, line)
+
+        print(self.email_outbox_message.message())
+        print('<><><>')
+        print(self.email_draft_message.message())
+
+        #django_message = EmailMultiAlternatives(
+        #    self.email_outbox_message.subject,
+        #    self.body_content,
+        #    str(self.email_account),
+        #    to=['user2@example.com'],
+        #    bcc=[],
+        #    headers={}
+        #)
+
+        ##EmailMultiAlternatives.encoding = 'alternative'
+
+        #django_message.attach_alternative(self.email_outbox_message.body, mimetype='text/html')
+
+        #print(django_message.message())
+
+        self.assertEqual(
+            True,
+            False
+        )

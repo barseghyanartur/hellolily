@@ -1,21 +1,26 @@
 import anyjson
-from email import Encoders
+import mimetypes
+import textwrap
+import logging
+
 from email.header import Header
+from email import Encoders
 from email.mime.audio import MIMEAudio
 from email.mime.base import MIMEBase
 from email.mime.image import MIMEImage
 from email.mime.text import MIMEText
 from email.utils import parseaddr
-import logging
-import mimetypes
-import os
-import textwrap
 
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
+from django.contrib.postgres.fields import ArrayField
 from django.core.files.uploadedfile import InMemoryUploadedFile, TemporaryUploadedFile
 from django.core.files.storage import default_storage
-from django.core.mail import SafeMIMEText, SafeMIMEMultipart, EmailMultiAlternatives
+from django.core.mail import (
+    SafeMIMEText,
+    SafeMIMEMultipart,
+    EmailMultiAlternatives
+)
 from django.urls import reverse
 from django.core.validators import validate_comma_separated_integer_list
 from django.db import models
@@ -63,6 +68,69 @@ def get_outbox_attachment_upload_path(instance, filename):
         'filename': filename
     }
 
+
+def add_attachments_to_email(model, email_message, inline_headers):
+    """ Retrieves all the attachments and adds them to the email. """
+    for attachment in model.attachments.all():
+        if attachment.inline:
+            continue
+
+        try:
+            storage_file = default_storage._open(attachment.attachment.name)
+        except IOError:
+            logger.exception(
+                'Couldn\'t get attachment, not sending {}:{}'.format(
+                    model._meta.db_table,
+                    model.id
+                )
+            )
+            raise
+
+        filename = get_attachment_filename_from_url(attachment.attachment.name)
+
+        storage_file.open()
+        content = storage_file.read()
+        storage_file.close()
+
+        content_type, encoding = mimetypes.guess_type(filename)
+        if content_type is None or encoding is not None:
+            content_type = 'application/octet-stream'
+        main_type, sub_type = content_type.split('/', 1)
+
+        if main_type == 'text':
+            msg = MIMEText(content, _subtype=sub_type)
+        elif main_type == 'image':
+            msg = MIMEImage(content, _subtype=sub_type)
+        elif main_type == 'audio':
+            msg = MIMEAudio(content, _subtype=sub_type)
+        else:
+            msg = MIMEBase(main_type, sub_type)
+            msg.set_payload(content)
+            Encoders.encode_base64(msg)
+
+        msg.add_header('Content-Disposition', 'attachment', filename=os.path.basename(filename))
+
+        email_message.attach(msg)
+
+    # Add the inline attachments to email message header
+    for inline_header in inline_headers:
+        main_type, sub_type = inline_header['content-type'].split('/', 1)
+        if main_type == 'image':
+            msg = MIMEImage(
+                inline_header['content'],
+                _subtype=sub_type,
+                name=os.path.basename(inline_header['content-filename'])
+            )
+            msg.add_header(
+                'Content-Disposition',
+                inline_header['content-disposition'],
+                filename=os.path.basename(inline_header['content-filename'])
+            )
+            msg.add_header('Content-ID', inline_header['content-id'])
+
+            email_message.attach(msg)
+
+    return True
 
 class EmailAccount(TenantMixin, DeletedMixin):
     """
@@ -113,6 +181,17 @@ class EmailAccount(TenantMixin, DeletedMixin):
         # Return if a full sync is needed on the account if it's newly added (history id missing) or it failed with a
         # history sync except when it is busy syncing already.
         return (not self.history_id or self.sync_failure_count > 0) and not self.is_syncing
+
+    @property
+    def detailed_email(self):
+        """ Adds an extra header if from_name is set. Otherwise simply
+        return email. """
+        if self.from_name:
+            return '"%s" <%s>' % (
+                Header(u'%s' % self.from_name, 'utf-8'),
+                self.email_address
+            )
+        return self.email_address
 
     class Meta:
         app_label = 'email'
@@ -482,7 +561,6 @@ class EmailTemplateAttachment(TenantMixin):
 
     @template: foreign key to the template model
     @attachment: the actual file to add per default to all emails using the template
-
     """
     attachment = models.FileField(
         verbose_name=_('template attachment'),
@@ -511,6 +589,10 @@ class EmailTemplateAttachment(TenantMixin):
 
 
 class EmailOutboxMessage(TenantMixin, models.Model):
+    """ Outbox email messages serve as an intermediary between Lily and Gmail.
+    These are used to instruct Gmail about the email that has to be send.
+    When this is model is sent it is replaced by an EmailMessage, which is
+    recognized by both parties. """
     bcc = models.TextField(null=True, blank=True, verbose_name=_('bcc'))
     body = models.TextField(null=True, blank=True, verbose_name=_('html body'))
     cc = models.TextField(null=True, blank=True, verbose_name=_('cc'))
@@ -528,21 +610,11 @@ class EmailOutboxMessage(TenantMixin, models.Model):
     original_message_id = models.CharField(null=True, blank=True, max_length=50, db_index=True)
 
     def message(self):
-        from ..utils import get_attachment_filename_from_url, replace_cid_and_change_headers
+        from ..utils import replace_cid_and_change_headers
 
         to = anyjson.loads(self.to)
         cc = anyjson.loads(self.cc)
         bcc = anyjson.loads(self.bcc)
-
-        if self.send_from.from_name:
-            # Add account name to From header if one is available
-            from_email = '"%s" <%s>' % (
-                Header(u'%s' % self.send_from.from_name, 'utf-8'),
-                self.send_from.email_address
-            )
-        else:
-            # Otherwise only add the email address
-            from_email = self.send_from.email_address
 
         html, text, inline_headers = replace_cid_and_change_headers(self.body, self.original_message_id)
 
@@ -554,7 +626,7 @@ class EmailOutboxMessage(TenantMixin, models.Model):
 
         email_message = SafeMIMEMultipart('related')
         email_message['Subject'] = self.subject
-        email_message['From'] = from_email
+        email_message['From'] = self.send_from.detailed_email
 
         if to:
             email_message['To'] = ','.join(list(to))
@@ -572,59 +644,10 @@ class EmailOutboxMessage(TenantMixin, models.Model):
         email_message_html = SafeMIMEText(html, 'html', 'utf-8')
         email_message_alternative.attach(email_message_html)
 
-        for attachment in self.attachments.all():
-            if attachment.inline:
-                continue
-
-            try:
-                storage_file = default_storage._open(attachment.attachment.name)
-            except IOError:
-                logger.exception('Couldn\'t get attachment, not sending %s' % self.id)
-                return False
-
-            filename = get_attachment_filename_from_url(attachment.attachment.name)
-
-            storage_file.open()
-            content = storage_file.read()
-            storage_file.close()
-
-            content_type, encoding = mimetypes.guess_type(filename)
-            if content_type is None or encoding is not None:
-                content_type = 'application/octet-stream'
-            main_type, sub_type = content_type.split('/', 1)
-
-            if main_type == 'text':
-                msg = MIMEText(content, _subtype=sub_type)
-            elif main_type == 'image':
-                msg = MIMEImage(content, _subtype=sub_type)
-            elif main_type == 'audio':
-                msg = MIMEAudio(content, _subtype=sub_type)
-            else:
-                msg = MIMEBase(main_type, sub_type)
-                msg.set_payload(content)
-                Encoders.encode_base64(msg)
-
-            msg.add_header('Content-Disposition', 'attachment', filename=os.path.basename(filename))
-
-            email_message.attach(msg)
-
-        # Add the inline attachments to email message header
-        for inline_header in inline_headers:
-            main_type, sub_type = inline_header['content-type'].split('/', 1)
-            if main_type == 'image':
-                msg = MIMEImage(
-                    inline_header['content'],
-                    _subtype=sub_type,
-                    name=os.path.basename(inline_header['content-filename'])
-                )
-                msg.add_header(
-                    'Content-Disposition',
-                    inline_header['content-disposition'],
-                    filename=os.path.basename(inline_header['content-filename'])
-                )
-                msg.add_header('Content-ID', inline_header['content-id'])
-
-                email_message.attach(msg)
+        try:
+            add_attachments_to_email(self, email_message, inline_headers)
+        except IOError:
+            return False
 
         return email_message
 
@@ -657,31 +680,49 @@ def post_delete_mail_attachment_handler(sender, **kwargs):
     storage.delete(filename)
 
 
-class EmailDraft(TimeStampedModel, TenantMixin):
-    """
-    This is the email draft model, it wraps around normal email messages with the draft label.
-    """
-    remote_id = models.CharField(max_length=255, verbose_name=_('Google draft id'), blank=True, db_index=True)
+class EmailDraftMessage(TenantMixin, models.Model):
+    """ Almost-exact-replica of EmailOutboxMessage, the key difference here is
+    that cc/bcc fields are Arrayfields. """
+    to = ArrayField(models.CharField(blank=True, max_length=100), verbose_name=_('to'))
+    cc = ArrayField(models.CharField(blank=True, max_length=100), verbose_name=_('cc'))
+    bcc = ArrayField(models.CharField(blank=True, max_length=100), verbose_name=_('bcc'))
+    headers = models.TextField(null=True, blank=True, verbose_name=_('email headers'))
+    subject = models.CharField(null=True, blank=True, max_length=255, verbose_name=_('subject'))
+    body = models.TextField(null=True, blank=True, verbose_name=_('html body'))
+    mapped_attachments = models.IntegerField(verbose_name=_('number of mapped attachments'))
+    original_attachment_ids = models.TextField(default='', validators=[validate_comma_separated_integer_list])
+    send_from = models.ForeignKey(EmailAccount, verbose_name=_('from'), related_name='draft_messages')
+    template_attachment_ids = models.CharField(
+        max_length=255,
+        default='',
+        validators=[validate_comma_separated_integer_list]
+    )
+    original_message_id = models.CharField(null=True, blank=True, max_length=50, db_index=True)
 
-    account = models.ForeignKey(EmailAccount, related_name='drafts')
-    message = models.OneToOneField(to=EmailMessage, related_name='draft_info', verbose_name=_('Message'))
+    def message(self):
+        from ..utils import replace_cid_and_change_headers
 
-    send = models.BooleanField(verbose_name=_('Sending'))
-
-    def to_string(self):
-        message = self.message
-
-        msg = EmailMultiAlternatives(
-            subject=message.subject,
-            body='text body',
-            from_email='allard.stijnman@wearespindle.com',
-            to=['allard@wearespindle.com', ],
-            cc=[],
-            bcc=[],
-            headers={},
-            alternatives=[('body html', 'text/html'), ],
-            reply_to=[],
-            attachments=[],
+        html, text, inline_headers = replace_cid_and_change_headers(
+            self.body,
+            self.original_message_id
         )
 
-        return msg.message().as_string()
+        django_message = EmailMultiAlternatives(
+            self.subject,
+            text,  # stripped from html
+            self.send_from.detailed_email,
+            to=self.to,
+            bcc=self.bcc,
+            headers={}
+        )
+
+        django_message.attach_alternative(html, mimetype='text/html')
+
+        # @TODO add attachments to email
+
+        return django_message.message()
+
+    class Meta:
+        app_label = 'email'
+        verbose_name = _('email outbox message')
+        verbose_name_plural = _('email outbox messages')
