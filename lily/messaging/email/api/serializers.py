@@ -13,8 +13,19 @@ from lily.api.nested.mixins import RelatedSerializerMixin
 from lily.api.nested.serializers import WritableNestedSerializer
 from lily.messaging.email.credentials import get_credentials
 
-from ..models.models import (EmailLabel, EmailAccount, EmailMessage, Recipient, EmailAttachment, EmailTemplateFolder,
-                             EmailTemplate, SharedEmailConfig, TemplateVariable, DefaultEmailTemplate)
+from ..models.models import (
+    EmailLabel,
+    EmailAccount,
+    EmailMessage,
+    Recipient,
+    EmailAttachment,
+    EmailTemplateFolder,
+    EmailTemplate,
+    SharedEmailConfig,
+    TemplateVariable,
+    DefaultEmailTemplate,
+    EmailDraftMessage
+)
 from ..services import GmailService
 
 
@@ -402,12 +413,10 @@ class TemplateVariableSerializer(serializers.ModelSerializer):
         )
 
 
-#class EmailDraftReadSerializer(serializers.ModelSerializer):
-#    message = EmailMessageSerializer()
-#
-#    class Meta:
-#        model = EmailDraft
-#        fields = '__all__'
+class EmailDraftMessageReadSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EmailDraftMessage
+        fields = '__all__'
 #
 #
 #class EmailDraftCreateSerializer(serializers.ModelSerializer):

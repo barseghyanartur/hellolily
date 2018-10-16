@@ -5,7 +5,7 @@ import json
 import os
 
 from datetime import datetime
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, UnicodeDammit
 import html2text
 from urllib import unquote
 
@@ -372,6 +372,12 @@ def replace_cid_and_change_headers(html, pk):
     body_text_handler.ignore_links = True
     body_text_handler.body_width = 0
     body_text = body_text_handler.handle(html)
+
+    # After django 1.11 update forcing the html part of the body to be unicode is needed to avoid encoding errors.
+    dammit = UnicodeDammit(body_html)
+    encoding = dammit.original_encoding
+    if encoding:
+        body_html = body_html.decode(encoding)
 
     return body_html, body_text, dummy_headers
 

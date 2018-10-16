@@ -2,6 +2,7 @@ import anyjson
 import mimetypes
 import textwrap
 import logging
+import os
 
 from email.header import Header
 from email import Encoders
@@ -27,7 +28,6 @@ from django.db import models
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
 from django.utils.translation import ugettext_lazy as _
-from bs4 import UnicodeDammit
 from oauth2client.contrib.django_orm import CredentialsField
 
 from lily.tenant.models import TenantMixin
@@ -71,6 +71,7 @@ def get_outbox_attachment_upload_path(instance, filename):
 
 def add_attachments_to_email(model, email_message, inline_headers):
     """ Retrieves all the attachments and adds them to the email. """
+    from ..utils import get_attachment_filename_from_url
     for attachment in model.attachments.all():
         if attachment.inline:
             continue
@@ -131,6 +132,7 @@ def add_attachments_to_email(model, email_message, inline_headers):
             email_message.attach(msg)
 
     return True
+
 
 class EmailAccount(TenantMixin, DeletedMixin):
     """
@@ -618,12 +620,6 @@ class EmailOutboxMessage(TenantMixin, models.Model):
 
         html, text, inline_headers = replace_cid_and_change_headers(self.body, self.original_message_id)
 
-        # After django 1.11 update forcing the html part of the body to be unicode is needed to avoid encoding errors.
-        dammit = UnicodeDammit(html)
-        encoding = dammit.original_encoding
-        if encoding:
-            html = html.decode(encoding)
-
         email_message = SafeMIMEMultipart('related')
         email_message['Subject'] = self.subject
         email_message['From'] = self.send_from.detailed_email
@@ -682,7 +678,7 @@ def post_delete_mail_attachment_handler(sender, **kwargs):
 
 class EmailDraftMessage(TenantMixin, models.Model):
     """ Almost-exact-replica of EmailOutboxMessage, the key difference here is
-    that cc/bcc fields are Arrayfields. """
+    that the to, cc and bcc fields are Arrayfields. """
     to = ArrayField(models.CharField(blank=True, max_length=100), verbose_name=_('to'))
     cc = ArrayField(models.CharField(blank=True, max_length=100), verbose_name=_('cc'))
     bcc = ArrayField(models.CharField(blank=True, max_length=100), verbose_name=_('bcc'))
@@ -724,5 +720,5 @@ class EmailDraftMessage(TenantMixin, models.Model):
 
     class Meta:
         app_label = 'email'
-        verbose_name = _('email outbox message')
-        verbose_name_plural = _('email outbox messages')
+        verbose_name = _('email draft message')
+        verbose_name_plural = _('email draft messages')

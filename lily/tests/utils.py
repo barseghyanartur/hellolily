@@ -96,8 +96,10 @@ class UserBasedTest(object):
         what the factory does by default..
         """
         # Set a default tenant of the user.
+        #print(kwargs.get('tenant'))
         kwargs['tenant'] = self.user_obj.tenant if not kwargs.get('tenant') else kwargs['tenant']
-
+        #print('>')
+        #print(kwargs.get('tenant'))
         object_list = self.factory_cls.create_batch(size=size, **kwargs)
 
         if size > 1:
@@ -133,15 +135,15 @@ class CompareObjectsMixin(object):
         If the response status code doesn't match log the response for debugging.
         """
         if request.status_code != desired_code:
-            print ''
-            print '%s.%s' % (self.model_cls.__name__, self._testMethodName)
-            print request.data
-            print ''
+            print('')
+            print('%s.%s' % (self.model_cls.__name__, self._testMethodName))
+            print(request.data)
+            print('')
             if original_data:
                 for key in request.data:
-                    print 'original data:'
-                    print original_data.get(key, 'Original data not available for %s' % key)
-            print ''
+                    print('original data:')
+                    print(original_data.get(key, 'Original data not available for %s' % key))
+            print('')
 
         self.assertEqual(request.status_code, desired_code)
 

@@ -478,11 +478,13 @@ class EmailOutboxMessageTests(UserBasedTest, APITestCase):
 
     def test_message(self):
         """
-        Test if the body of email outbox message is the same as the email draft
-        message.
+        Test if the body of email outbox message is (roughly) the same as the
+        email draft message. This test is to help refactoring the draft email
+        model. Can be removed as soon as it is proven that draft emails can be
+        used with the gmail API.
         """
 
-        message_should_contain = [
+        outbox_message_should_contain = [
             'From nobody ',
             'Content-Type: multipart/related;',
             ' boundary=',
@@ -515,31 +517,38 @@ class EmailOutboxMessageTests(UserBasedTest, APITestCase):
             '--==============',
         ]
 
-        message = str(self.email_outbox_message.message()).split('\n')
-
-        for contains, line in zip(message_should_contain, message):
+        outbox_message = str(self.email_outbox_message.message()).split('\n')
+        for contains, line in zip(outbox_message_should_contain, outbox_message):
             self.assertIn(contains, line)
 
-        print(self.email_outbox_message.message())
-        print('<><><>')
-        print(self.email_draft_message.message())
+        draft_message_should_contain = [
+            'From nobody ',
+            'Content-Type: multipart/alternative;',
+            ' boundary=',
+            'MIME-Version: 1.0',
+            'Subject: {}'.format(self.email_outbox_message.subject),
+            'From: ',
+            'To: {}'.format(self.email_draft_message.to[0]),
+            'Date: ',
+            'Message-ID: <',
+            '',
+            '--==============',
+            'Content-Type: text/plain; charset="utf-8"',
+            'MIME-Version: 1.0',
+            'Content-Transfer-Encoding: 7bit',
+            '',
+            '',
+            self.body_content,
+            '',
+            '--==============',
+            'Content-Type: text/html; charset="utf-8"',
+            'MIME-Version: 1.0',
+            'Content-Transfer-Encoding: 7bit',
+            '',
+            self.email_outbox_message.body,
+            '--=============='
+        ]
 
-        #django_message = EmailMultiAlternatives(
-        #    self.email_outbox_message.subject,
-        #    self.body_content,
-        #    str(self.email_account),
-        #    to=['user2@example.com'],
-        #    bcc=[],
-        #    headers={}
-        #)
-
-        ##EmailMultiAlternatives.encoding = 'alternative'
-
-        #django_message.attach_alternative(self.email_outbox_message.body, mimetype='text/html')
-
-        #print(django_message.message())
-
-        self.assertEqual(
-            True,
-            False
-        )
+        draft_message = str(self.email_draft_message.message()).split('\n')
+        for contains, line in zip(draft_message_should_contain, draft_message):
+            self.assertIn(contains, line)
