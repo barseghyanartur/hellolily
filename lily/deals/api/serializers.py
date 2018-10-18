@@ -1,7 +1,9 @@
+import analytics
 import datetime
 import anyjson
 
 from channels import Group
+from django.conf import settings
 from django.utils.timezone import utc
 from django.utils.translation import ugettext_lazy as _
 
@@ -287,6 +289,8 @@ class DealSerializer(WritableNestedSerializer):
         status_id = validated_data.get('status').get('id')
         status = DealStatus.objects.get(pk=status_id)
         closed_date = validated_data.get('closed_date')
+        next_step_id = validated_data.get('next_step').get('id')
+        next_step = DealNextStep.objects.get(pk=next_step_id)
 
         # Set closed_date if status is lost/won and not manually provided.
         if (status.is_won or status.is_lost) and not closed_date:
@@ -319,6 +323,21 @@ class DealSerializer(WritableNestedSerializer):
                     'event': 'deal-unassigned',
                 }),
             })
+
+        # Track newly ceated accounts in segment.
+        if not settings.TESTING:
+            request_source = self.context.get('request').get_host()
+            creation_type = 'manual' if request_source == 'app.hellolily.com' else 'automatic'
+            analytics.track(
+                user.id,
+                'deal-created', {
+                    'assigned_to_id': assigned_to.get('id') if assigned_to else '',
+                    'status': status.name,
+                    'next_step': next_step.name,
+                    'creation_type': creation_type,
+                },
+                anonymous_id='Anonymous' if user.is_anonymous() else None
+            )
 
         return super(DealSerializer, self).create(validated_data)
 

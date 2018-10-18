@@ -1,6 +1,8 @@
+import analytics
 import anyjson
 
 from channels import Group
+from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
@@ -144,6 +146,7 @@ class CaseSerializer(WritableNestedSerializer):
     def create(self, validated_data):
         user = self.context.get('request').user
         assigned_to = validated_data.get('assigned_to')
+        expires = validated_data.get('expires')
 
         validated_data.update({
             'created_by_id': user.pk,
@@ -167,6 +170,20 @@ class CaseSerializer(WritableNestedSerializer):
                     'event': 'case-unassigned',
                 }),
             })
+
+        # Track newly ceated accounts in segment.
+        if not settings.TESTING:
+            request_source = self.context.get('request').get_host()
+            creation_type = 'manual' if request_source == 'app.hellolily.com' else 'automatic'
+            analytics.track(
+                user.id,
+                'case-created', {
+                    'expires': expires,
+                    'assigned_to_id': assigned_to.get('id') if assigned_to else '',
+                    'creation_type': creation_type,
+                },
+                anonymous_id='Anonymous' if user.is_anonymous() else None
+            )
 
         return super(CaseSerializer, self).create(validated_data)
 
