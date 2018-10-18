@@ -17,6 +17,22 @@ from lily.tenant.factories import TenantFactory
 from lily.tenant.middleware import set_current_user
 from lily.users.models import LilyUser, UserInfo
 
+def to_dict(instance_or_dict):
+    """ Checks if passed value is a dictionary, else converts it to one."""
+    if isinstance(instance_or_dict, dict):
+        return instance_or_dict
+
+    if isinstance(instance_or_dict, list):
+        return instance_or_dict
+
+    if not hasattr(instance_or_dict, '__dict__'):
+        return str(instance_or_dict)
+
+    data = dict()
+    for attr, value in instance_or_dict.__dict__.iteritems():
+        data[attr] = to_dict(value)
+    return data
+
 
 class UserBasedTest(object):
     """
@@ -116,7 +132,7 @@ class UserBasedTest(object):
             # If required size is 1, just give the object instead of a list.
             return object_list[0]
 
-    def _create_object_stub(self, with_relations=False, size=1, **kwargs):
+    def _create_object_stub(self, with_relations=False, size=1, force_to_list=False, **kwargs):
         """
         Default implentation for the creation of stubs, this doesn't do anything with relations other than
         what the factory does by default.
@@ -126,11 +142,17 @@ class UserBasedTest(object):
 
         object_list = self.factory_cls.stub_batch(size=size, **kwargs)
 
-        if size > 1:
+        return self._formatted_stub(object_list, size, force_to_list)
+
+    def _formatted_stub(self, object_list, size, force_to_list=False):
+        """ Returns the object or a list of object(s) depending on size and
+        force_to_list. """
+        if size > 1 or force_to_list is True:
             return [obj.__dict__ for obj in object_list]
-        else:
-            # If required size is 1, just give the object instead of a list.
-            return object_list[0].__dict__
+
+        # If required size is 1 and force_to_list is False, just give the
+        # object instead of a list.
+        return object_list[0].__dict__
 
 
 class CompareObjectsMixin(object):
@@ -349,9 +371,6 @@ class GenericAPITestCase(CompareObjectsMixin, UserBasedTest, APITestCase):
         """
         set_current_user(self.user_obj)
         stub_dict = self._create_object_stub()
-
-        print(stub_dict)
-        print(self.get_url(self.list_url))
 
         request = self.user.post(self.get_url(self.list_url), stub_dict)
         self.assertStatus(request, status.HTTP_201_CREATED, stub_dict)
