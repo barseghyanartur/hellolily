@@ -288,11 +288,6 @@ class EmailAccountSerializer(WritableNestedSerializer):
         )
     read_only_fields = ('email_address', 'is_authorized', 'is_syncing', 'is_public',)
 
-
-class RelatedEmailAccountSerializer(RelatedSerializerMixin, EmailAccountSerializer):
-    pass
-
-
 class EmailTemplateSerializer(serializers.ModelSerializer):
     def get_default_for_queryset(self, instance=None):
         """
@@ -414,9 +409,11 @@ class TemplateVariableSerializer(serializers.ModelSerializer):
 
 
 class EmailDraftMessageReadSerializer(serializers.ModelSerializer):
+    send_from = EmailAccountSerializer(allow_null=True)
+
     class Meta:
         model = EmailDraftMessage
-        fields = '__all__'
+        fields = ('to', 'cc', 'bcc', 'headers', 'subject', 'body', 'send_from')
 #
 #
 #class EmailDraftCreateSerializer(serializers.ModelSerializer):

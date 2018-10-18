@@ -44,6 +44,14 @@ services:
     logging:
       driver: "none"
 
+  pgadmin:
+    image: "thajeztah/pgadmin4"
+    networks:
+      - internal
+    depends_on:
+      - db
+    ports:
+      - "5050:5050"
   app:
     image: "hellolily/hellolily-app:latest"
     command: "/bin/true"

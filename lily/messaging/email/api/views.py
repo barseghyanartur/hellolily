@@ -527,33 +527,37 @@ class EmailDraftViewSet(viewsets.ModelViewSet):
     # Set all filter backends that this viewset uses.
     # filter_backends = (OrderingFilter, EmailDraftFilter, )  # TODO: proper filtering and sorting and stuff.
 
+    serializer_class = EmailDraftMessageReadSerializer
+
     def dispatch(self, request, *args, **kwargs):
         response = super(EmailDraftViewSet, self).dispatch(request, *args, **kwargs)
 
         # Store the email accounts on the class so we only have to fetch them once.
-        self.available_email_accounts = get_shared_email_accounts(self.request.user)
+        #self.available_email_accounts = get_shared_email_accounts(self.request.user)
 
         return response
 
     def get_queryset(self):
-        return super(EmailDraftViewSet, self).get_queryset().filter(account__in=self.available_email_accounts)
+        return super(EmailDraftViewSet, self).get_queryset().filter(
+            send_from__in=get_shared_email_accounts(self.request.user)
+        )
 
-    def get_serializer_class(self):
-        method_serializer_classes = {
-            ('GET', ): EmailDraftReadSerializer,
-            #('POST', ): EmailDraftCreateSerializer,
-            #('PUT', 'PATCH', ): EmailDraftUpdateSerializer,
-        }
+    #def get_serializer_class(self):
+    #    method_serializer_classes = {
+    #        ('GET', ): EmailDraftMessageReadSerializer,
+    #        #('POST', ): EmailDraftCreateSerializer,
+    #        #('PUT', 'PATCH', ): EmailDraftUpdateSerializer,
+    #    }
 
-        for methods, serializer_cls in method_serializer_classes.items():
-            if self.request.method in methods:
-                return serializer_cls
+    #    for methods, serializer_cls in method_serializer_classes.items():
+    #        if self.request.method in methods:
+    #            return serializer_cls
 
     def get_serializer_context(self):
         context = super(EmailDraftViewSet, self).get_serializer_context()
 
         # We give the available email accounts to the serializer to prevent extra queries to fetch them again.
-        context['available_email_accounts'] = self.available_email_accounts
+        #context['available_email_accounts'] = get_shared_email_accounts(self.request.user)
 
         return context
 

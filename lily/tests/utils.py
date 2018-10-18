@@ -96,10 +96,8 @@ class UserBasedTest(object):
         what the factory does by default..
         """
         # Set a default tenant of the user.
-        #print(kwargs.get('tenant'))
         kwargs['tenant'] = self.user_obj.tenant if not kwargs.get('tenant') else kwargs['tenant']
-        #print('>')
-        #print(kwargs.get('tenant'))
+
         object_list = self.factory_cls.create_batch(size=size, **kwargs)
 
         if size > 1:
@@ -341,6 +339,9 @@ class GenericAPITestCase(CompareObjectsMixin, UserBasedTest, APITestCase):
         """
         set_current_user(self.user_obj)
         stub_dict = self._create_object_stub()
+
+        print(stub_dict)
+        print(self.get_url(self.list_url))
 
         request = self.user.post(self.get_url(self.list_url), stub_dict)
         self.assertStatus(request, status.HTTP_201_CREATED, stub_dict)

@@ -30,6 +30,7 @@ email_addresses = List([
     email_address for _ in range(randint(1, 4))
 ])
 
+
 class EmailAccountFactory(DjangoModelFactory):
     tenant = SubFactory(TenantFactory)
     owner = SubFactory(LilyUserFactory, tenant=SelfAttribute('..tenant'))
