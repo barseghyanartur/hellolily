@@ -90,6 +90,13 @@ class UserBasedTest(object):
         super(UserBasedTest, cls).tearDownClass()
         set_current_user(None)
 
+    def _extra_create_object_kwargs(self):
+        """
+        Function to add extra keyword arguments to create_batch called in
+        _create_object.
+        """
+        return dict()
+
     def _create_object(self, with_relations=False, size=1, **kwargs):
         """
         Default implentation for the creation of objects, this doesn't do anything with relations other than
@@ -98,7 +105,10 @@ class UserBasedTest(object):
         # Set a default tenant of the user.
         kwargs['tenant'] = self.user_obj.tenant if not kwargs.get('tenant') else kwargs['tenant']
 
-        object_list = self.factory_cls.create_batch(size=size, **kwargs)
+        all_kwargs = kwargs.copy()
+        all_kwargs.update(self._extra_create_object_kwargs())
+
+        object_list = self.factory_cls.create_batch(size=size, **all_kwargs)
 
         if size > 1:
             return object_list
