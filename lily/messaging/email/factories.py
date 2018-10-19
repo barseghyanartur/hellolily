@@ -12,7 +12,7 @@ from factory.helpers import post_generation
 from lily.tenant.factories import TenantFactory
 from lily.users.factories import LilyUserFactory
 from .models.models import (EmailAccount, EmailMessage, Recipient, EmailLabel,
-                            EmailDraftMessage)
+                            EmailDraft)
 
 faker = Factory.create('nl_NL')
 
@@ -39,6 +39,7 @@ class EmailAccountFactory(DjangoModelFactory):
     label = LazyAttribute(lambda o: faker.word())
     is_authorized = True
     privacy = FuzzyChoice(dict(EmailAccount.PRIVACY_CHOICES).keys())
+    color = 'yellow'
 
     class Meta:
         model = EmailAccount
@@ -94,7 +95,7 @@ class EmailLabelFactory(DjangoModelFactory):
         model = EmailLabel
 
 
-class EmailDraftMessageFactory(DjangoModelFactory):
+class EmailDraftFactory(DjangoModelFactory):
     tenant = SubFactory(TenantFactory)
     send_from = SubFactory(EmailAccountFactory, tenant=SelfAttribute('..tenant'))
     to = email_addresses
@@ -107,9 +108,9 @@ class EmailDraftMessageFactory(DjangoModelFactory):
     mapped_attachments = FuzzyInteger(0, 5)
 
     class Meta:
-        model = EmailDraftMessage
+        model = EmailDraft
 
     #@classmethod
     #def create(cls, **kwargs):
     #    """Create an instance of the associated class, with overriden attrs."""
-    #    return super(EmailDraftMessageFactory, cls).create(**kwargs)
+    #    return super(EmailDraftFactory, cls).create(**kwargs)

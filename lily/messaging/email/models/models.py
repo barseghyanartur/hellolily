@@ -676,7 +676,7 @@ def post_delete_mail_attachment_handler(sender, **kwargs):
     storage.delete(filename)
 
 
-class EmailDraftMessage(TenantMixin, models.Model):
+class EmailDraft(TenantMixin, models.Model):
     """ Almost-exact-replica of EmailOutboxMessage, the key difference here is
     that the to, cc and bcc fields are Arrayfields. """
     to = ArrayField(models.CharField(blank=True, max_length=100), verbose_name=_('to'))
@@ -693,9 +693,9 @@ class EmailDraftMessage(TenantMixin, models.Model):
         default='',
         validators=[validate_comma_separated_integer_list]
     )
-    original_message_id = models.CharField(null=True, blank=True, max_length=50, db_index=True)
+    original_message_id = models.CharField(default='', blank=True, max_length=50, db_index=True)
 
-    def message(self):
+    def mime_message(self):
         from ..utils import replace_cid_and_change_headers
 
         html, text, inline_headers = replace_cid_and_change_headers(
