@@ -485,7 +485,7 @@ class EmailDraftCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 'message': _('`send_from` is required when action is `compose`.')
             })
-        elif not self.context['available_email_accounts']:
+        elif not self.context['available_accounts']:
             raise serializers.ValidationError(
                 _('Can\'t create a draft because no email accounts are accessible.')
             )

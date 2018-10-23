@@ -1,7 +1,7 @@
 import json
 
 from lily.tests.utils import GenericAPITestCase
-from lily.messaging.email.factories import EmailDraftFactory, EmailAccountFactory
+from lily.messaging.email.factories import EmailDraftFactory, EmailAccountFactory, EmailMessageFactory
 from lily.messaging.email.models.models import EmailDraft
 from lily.messaging.email.api.serializers import EmailDraftReadSerializer
 from lily.tenant.middleware import set_current_user
@@ -20,7 +20,7 @@ class DraftEmailTests(GenericAPITestCase):
     model_cls = EmailDraft
     serializer_cls = EmailDraftReadSerializer
 
-    def _create_object_stub(self, size=1, action=None, **kwargs):
+    def _create_object_stub(self, size=1, action=None, with_send_from=True, with_message=False, **kwargs):
         object_list = super(DraftEmailTests, self)._create_object_stub(size, force_to_list=True, **kwargs)
 
         for obj in object_list:
@@ -28,9 +28,16 @@ class DraftEmailTests(GenericAPITestCase):
             if action is not None:
                 obj['action'] = action
 
-            obj['send_from'] = EmailAccountFactory(
+            account = EmailAccountFactory(
                 owner=self.user_obj, tenant=self.user_obj.tenant
-            ).id
+            )
+
+            obj['send_from'] = None
+            if with_send_from:
+                obj['send_from'] = account.id
+
+            if with_message:
+                obj['message'] = EmailMessageFactory.create(account=account).id
 
         if size == 1:
             return object_list[0]
@@ -54,23 +61,52 @@ class DraftEmailTests(GenericAPITestCase):
         """
         pass
 
-    def test_create_compose_object(self):
+    def _test_create_action_object(self, action, with_send_from=True, with_message=False, should_succeed=True):
         """
-        This test is to test if creating an email with action 'compose' works
-        as expected.
+        This helper function tests the basic create functionality with the
+        passed action.
         """
-
         set_current_user(self.user_obj)
-        stub_dict = self._create_object_stub(action='compose')
+        stub_dict = self._create_object_stub(
+            action=action,
+            with_send_from=with_send_from,
+            with_message=with_message
+        )
 
         request = self.user.post(self.get_url(self.list_url), stub_dict)
-        self.assertStatus(request, status.HTTP_201_CREATED, stub_dict)
 
-        created_id = json.loads(request.content).get('id')
-        self.assertIsNotNone(created_id)
+        status_code = status.HTTP_400_BAD_REQUEST
+        if should_succeed:
+            status_code = status.HTTP_201_CREATED
 
-        db_obj = self.model_cls.objects.get(pk=created_id)
-        self._compare_objects(db_obj, json.loads(request.content))
+        self.assertStatus(request, status_code, stub_dict)
+
+        if should_succeed:
+            created_id = json.loads(request.content).get('id')
+            self.assertIsNotNone(created_id)
+
+            db_obj = self.model_cls.objects.get(pk=created_id)
+            self._compare_objects(db_obj, json.loads(request.content))
+
+    def test_create_compose_object(self):
+        """
+        Test that creating an email with action 'compose' is possible.
+        """
+        self._test_create_action_object('compose')
+
+    def test_create_compose_object_with_message(self):
+        """
+        Test that creating an email with a message and action 'compose' is
+        not possible.
+        """
+        self._test_create_action_object('compose', with_message=True, should_succeed=False)
+
+    def test_create_compose_object_without_send_from(self):
+        """
+        Test that creating an email without send_from and with action 'compose'
+        is not possible.
+        """
+        self._test_create_action_object('compose', with_send_from=False, should_succeed=False)
 
     def test_get_list_tenant_filter(self):
         """

@@ -529,23 +529,20 @@ class EmailDraftViewSet(viewsets.ModelViewSet):
         response = super(EmailDraftViewSet, self).dispatch(request, *args, **kwargs)
 
         # Store the email accounts on the class so we only have to fetch them once.
-        self.available_email_accounts = get_shared_email_accounts(self.request.user)
+        self.available_accounts = get_shared_email_accounts(self.request.user)
 
         return response
 
     def get_queryset(self):
-        a = super(EmailDraftViewSet, self).get_queryset().filter(
+        return super(EmailDraftViewSet, self).get_queryset().filter(
             send_from__in=get_shared_email_accounts(self.request.user)
         )
-
-        return a
 
     def get_serializer_class(self):
         method_serializer_classes = {
             ('GET', ): EmailDraftReadSerializer,
             ('POST', ): EmailDraftCreateSerializer,
-            ('PUT', 'PATCH', ): EmailDraftUpdateSerializer,
-            # add DELETE thingy
+            ('PUT', 'PATCH', ): EmailDraftUpdateSerializer
         }
 
         for methods, serializer_cls in method_serializer_classes.items():
@@ -556,6 +553,6 @@ class EmailDraftViewSet(viewsets.ModelViewSet):
         context = super(EmailDraftViewSet, self).get_serializer_context()
 
         # We give the available email accounts to the serializer to prevent extra queries to fetch them again.
-        context['available_email_accounts'] = get_shared_email_accounts(self.request.user)
+        context['available_accounts'] = get_shared_email_accounts(self.request.user)
 
         return context
