@@ -1,12 +1,11 @@
 import json
 
-from django.forms.models import model_to_dict
-
 from lily.tests.utils import GenericAPITestCase
 from lily.messaging.email.factories import EmailDraftFactory, EmailAccountFactory
 from lily.messaging.email.models.models import EmailDraft
 from lily.messaging.email.api.serializers import EmailDraftReadSerializer
 from lily.tenant.middleware import set_current_user
+
 from rest_framework import status
 
 
@@ -25,17 +24,13 @@ class DraftEmailTests(GenericAPITestCase):
         object_list = super(DraftEmailTests, self)._create_object_stub(size, force_to_list=True, **kwargs)
 
         for obj in object_list:
+            obj['action'] = 'compose'  # 'compose' is the default
             if action is not None:
                 obj['action'] = action
 
-            obj['send_from'] = model_to_dict(
-                EmailAccountFactory(owner=self.user_obj, tenant=self.user_obj.tenant)
-            )
-
-            if action == 'compose':
-                obj['send_from'] = obj['send_from']['id']
-
-            print(obj)
+            obj['send_from'] = EmailAccountFactory(
+                owner=self.user_obj, tenant=self.user_obj.tenant
+            ).id
 
         if size == 1:
             return object_list[0]
@@ -44,8 +39,9 @@ class DraftEmailTests(GenericAPITestCase):
 
     def _extra_create_object_kwargs(self):
         """
-        Adds owner of emails as a keyword argument of create_batch called
-        in create object to make sure that we have access to the created emails.
+        Adds owner of emails as a default keyword argument of create_batch
+        called in create object to make sure that we have access to the
+        created emails.
         """
         return dict(
             send_from__owner=self.user_obj
@@ -67,12 +63,8 @@ class DraftEmailTests(GenericAPITestCase):
         set_current_user(self.user_obj)
         stub_dict = self._create_object_stub(action='compose')
 
-        print(self.get_url(self.list_url))
-
         request = self.user.post(self.get_url(self.list_url), stub_dict)
         self.assertStatus(request, status.HTTP_201_CREATED, stub_dict)
-
-        print(request.content)
 
         created_id = json.loads(request.content).get('id')
         self.assertIsNotNone(created_id)
@@ -80,4 +72,26 @@ class DraftEmailTests(GenericAPITestCase):
         db_obj = self.model_cls.objects.get(pk=created_id)
         self._compare_objects(db_obj, json.loads(request.content))
 
+    def test_get_list_tenant_filter(self):
+        """
+        Test that users from different tenants can't access each other's data.
+        """
+        set_current_user(self.other_tenant_user_obj)
 
+        other_tenant_obj_list = self._create_object(
+            size=3,
+            send_from__owner=self.other_tenant_user_obj,
+            tenant=self.other_tenant_user_obj.tenant
+        )
+
+        set_current_user(self.user_obj)
+        self._create_object(size=3)
+
+        set_current_user(None)
+
+        request = self.other_tenant_user.get(self.get_url(self.list_url))
+        self.assertStatus(request, status.HTTP_200_OK)
+        self.assertEqual(len(other_tenant_obj_list), len(request.data.get('results')))
+
+        for i, db_obj in enumerate(reversed(other_tenant_obj_list)):
+            self._compare_objects(db_obj, request.data.get('results')[i])

@@ -17,22 +17,6 @@ from lily.tenant.factories import TenantFactory
 from lily.tenant.middleware import set_current_user
 from lily.users.models import LilyUser, UserInfo
 
-def to_dict(instance_or_dict):
-    """ Checks if passed value is a dictionary, else converts it to one."""
-    if isinstance(instance_or_dict, dict):
-        return instance_or_dict
-
-    if isinstance(instance_or_dict, list):
-        return instance_or_dict
-
-    if not hasattr(instance_or_dict, '__dict__'):
-        return str(instance_or_dict)
-
-    data = dict()
-    for attr, value in instance_or_dict.__dict__.iteritems():
-        data[attr] = to_dict(value)
-    return data
-
 
 class UserBasedTest(object):
     """
@@ -122,7 +106,12 @@ class UserBasedTest(object):
         kwargs['tenant'] = self.user_obj.tenant if not kwargs.get('tenant') else kwargs['tenant']
 
         all_kwargs = kwargs.copy()
-        all_kwargs.update(self._extra_create_object_kwargs())
+
+        # Allows default keyword arguments to be set for create_batch.
+        extra_kwargs = self._extra_create_object_kwargs()
+        for key, value in extra_kwargs.iteritems():
+            if key not in all_kwargs:
+                all_kwargs.update({key: value})
 
         object_list = self.factory_cls.create_batch(size=size, **all_kwargs)
 

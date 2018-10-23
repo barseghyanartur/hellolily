@@ -12,6 +12,7 @@ from lily.api.fields import DynamicQuerySetPrimaryKeyRelatedField
 from lily.api.nested.mixins import RelatedSerializerMixin
 from lily.api.nested.serializers import WritableNestedSerializer
 from lily.messaging.email.credentials import get_credentials
+from lily.tenant.api.serializers import TenantSerializer
 
 from ..models.models import (
     EmailLabel,
@@ -413,16 +414,36 @@ class EmailDraftReadSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = EmailDraft
-        fields = ('to', 'cc', 'bcc', 'subject', 'body', 'send_from')
+        fields = (
+            'id',
+            'send_from',
+            'to',
+            'cc',
+            'bcc',
+            'subject',
+            'body',
+            'tenant'
+        )
 
 
-class EmailDraftActionSerializer(serializers.ChoiceField):
-    pass
-    #def get_attribute(self, instance):
-    #    return None
+class EmailDraftUpdateSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(read_only=True)
+    send_from = EmailAccountSerializer(read_only=True)
+    tenant = TenantSerializer(read_only=True)
 
-    #def to_representation(self, value):
-    #    return ''
+    class Meta:
+        model = EmailDraft
+        fields = (
+            'id',
+            'send_from',
+            'to',
+            'cc',
+            'bcc',
+            'subject',
+            'body',
+            'tenant'
+        )
+
 
 class EmailDraftCreateSerializer(serializers.ModelSerializer):
     def get_message_queryset(self):
@@ -443,6 +464,7 @@ class EmailDraftCreateSerializer(serializers.ModelSerializer):
     action = serializers.ChoiceField(choices=action_map.keys(), write_only=True)
     message = DynamicQuerySetPrimaryKeyRelatedField(required=False, queryset=get_message_queryset, write_only=True)
     send_from = DynamicQuerySetPrimaryKeyRelatedField(queryset=get_account_queryset)
+    tenant = TenantSerializer(read_only=True)
 
     def validate(self, data):
         self.request = self.context.get('request')
@@ -467,10 +489,6 @@ class EmailDraftCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 _('Can\'t create a draft because no email accounts are accessible.')
             )
-
-        print(".<><><>")
-        print(send_from)
-        print(".<><><>")
 
         return data
 
@@ -513,13 +531,6 @@ class EmailDraftCreateSerializer(serializers.ModelSerializer):
             'cc',
             'bcc',
             'subject',
-            'body'
+            'body',
+            'tenant'
         )
-#
-#
-#class EmailDraftUpdateSerializer(serializers.ModelSerializer):
-#    message = EmailMessageSerializer()
-#
-#    class Meta:
-#        model = EmailDraft
-#        fields = '__all__'

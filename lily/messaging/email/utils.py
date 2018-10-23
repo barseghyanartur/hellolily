@@ -12,6 +12,7 @@ from urllib import unquote
 from django.apps import apps
 from django.db.models.query_utils import Q
 from django.conf import settings
+from django.core.files.storage import default_storage
 from django.urls import reverse
 from django.template import Context
 from django.template.base import VARIABLE_TAG_START, VARIABLE_TAG_END
@@ -622,6 +623,9 @@ def get_extensions_for_type(general_type):
 
 
 def get_shared_email_accounts(user):
+    if not hasattr(user, 'tenant'):
+        return []
+
     if not user.tenant.billing.is_free_plan:
         # Team plan allows sharing of email account.
         # Get a list of email accounts which are publicly shared or shared specifically with the user.
